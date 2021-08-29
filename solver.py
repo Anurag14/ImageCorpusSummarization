@@ -81,7 +81,7 @@ class Solver(object):
         for epoch_i in trange(self.config.n_epochs, desc='Epoch', ncols=80):
             s_e_loss_history = []
             d_loss_history = []
-            c_loss_history = []
+            g_loss_history = []
             for batch_i in enumerate(tqdm(
                     self.train_loader, desc='Batch', ncols=80, leave=False)):
                 original_data, _ = batch_i[1] # for the [0 , [data, label]]
@@ -107,10 +107,10 @@ class Solver(object):
                 original_prob = self.discriminator(original_data.cuda()).squeeze()
                 fake_prob = self.discriminator(weighted_data).squeeze()
                 uniform_prob = self.discriminator(uniform_data).squeeze()
-                print("unform: ", uniform_prob.shape)
-                print('[original_p: %.3f][fake_p: %.3f][uniform_p: %.3f]'% (original_prob[0].item(), fake_prob[0].item(), uniform_prob[0].item()))
+          
+                #print('[original_p: %.3f][fake_p: %.3f][uniform_p: %.3f]'% (original_prob[0].item(), fake_prob[0].item(), uniform_prob[0].item()))
 
-                reconstruction_loss = 0.1*self.reconstruction_loss(weighted_data, uniform_data)
+                reconstruction_loss = self.reconstruction_loss(weighted_data, uniform_data)
                 sparsity_loss = self.sparsity_loss(scores)
                 gan_loss = self.gan_loss(original_prob, fake_prob, uniform_prob)
                 
@@ -118,31 +118,27 @@ class Solver(object):
                 print('[recon loss: %.3f][sparsity loss: %.3f][gan loss: %.3f]'% (reconstruction_loss.item(), sparsity_loss.item(), gan_loss.item()))
 
                 s_e_loss = reconstruction_loss + sparsity_loss
-                d_loss = reconstruction_loss + gan_loss
-                c_loss = -1 * gan_loss # Maximization
-                
-                if self.config.discriminator_slow_start < epoch_i:
-                    self.c_optimizer.zero_grad()
-                    c_loss.backward(retain_graph=True)
-                    # Gradient cliping
-                    torch.nn.utils.clip_grad_norm(self.model.parameters(), self.config.clip)
-                    self.c_optimizer.step()
-                
-                self.s_e_optimizer.zero_grad()
-                s_e_loss.backward(retain_graph=True)
-                torch.nn.utils.clip_grad_norm(self.model.parameters(), self.config.clip)
-                self.s_e_optimizer.step()
+                g_loss = reconstruction_loss + gan_loss
+                d_loss = -1 * gan_loss # Maximization
                 
                 self.d_optimizer.zero_grad()
-                d_loss.backward()
+                self.s_e_optimizer.zero_grad()
+                self.g_optimizer.zero_grad()
+
+                d_loss.backward(retain_graph=True)
+                s_e_loss.backward(retain_graph=True)
+                g_loss.backward()
+
                 torch.nn.utils.clip_grad_norm(self.model.parameters(), self.config.clip)
                 self.d_optimizer.step()
+                self.s_e_optimizer.step()
+                self.g_optimizer.step()
                 
                 
                 
                 s_e_loss_history.append(s_e_loss.data)
                 d_loss_history.append(d_loss.data)
-                c_loss_history.append(c_loss.data)
+                g_loss_history.append(g_loss.data)
                
                 if self.config.verbose:
                     tqdm.write('Plotting...')
@@ -159,7 +155,7 @@ class Solver(object):
 
             s_e_loss = torch.stack(s_e_loss_history).mean()
             d_loss = torch.stack(d_loss_history).mean()
-            c_loss = torch.stack(c_loss_history).mean()
+            c_loss = torch.stack(g_loss_history).mean()
 
             # Plot
             if self.config.verbose:
@@ -183,18 +179,18 @@ class Solver(object):
         # self.model.load_state_dict(torch.load(checkpoint))
 
         self.model.eval()
-
+        scores_list = []
         for data, label in tqdm(self.test_loader, desc='Evaluate', ncols=80, leave=False):
 
             # [seq_len, batch=1, 2048]
-            image_features = self.backbone(original_data.cuda())
+            image_features = self.backbone(data.cuda())
 
             # [seq_len]
             scores, _ = self.summarizer(image_features)
 
-            scores = np.array(scores.data).tolist()
-            score_save_path = self.config.score_dir.joinpath(f'{self.config.dataset}_{epoch_i}.npy')
-            np.save(score_save_path, scores)
+            scores_list.extend(scores.detach().cpu().numpy().tolist())
+        score_save_path = self.config.score_dir.joinpath(f'{self.config.dataset}_{epoch_i}.npy')
+        np.save(score_save_path, scores_list)
 
     def pretrain(self):
         pass

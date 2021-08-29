@@ -6,7 +6,7 @@ import pprint
 
 project_dir = Path(__file__).resolve().parent
 dataset_dir = Path('./dataset/').resolve()
-save_dir = Path('./SUM_GAN/')
+save_dir = Path('./results/models/')
 score_dir = Path('./results/SUM-GAN/')
 
 
