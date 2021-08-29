@@ -8,7 +8,7 @@ import numpy as np
 import json
 from tqdm import tqdm, trange
 
-from layers import Summarizer, Discriminator, apply_weight_norm
+from layers import Summarizer, Generator, Discriminator, apply_weight_norm
 from utils import TensorboardWriter
 from feature_extraction import ResNetFeature
 
@@ -23,16 +23,14 @@ class Solver(object):
     def build(self):
 
         # Build Modules
+        self.backbone = ResNetFeature()
         self.summarizer = Summarizer(
             input_size=self.config.input_size,
             hidden_size=self.config.hidden_size,
             num_layers=self.config.num_layers).cuda()
         self.generator = Generator(
             self.config.input_size).cuda()
-        self.discriminator = Discriminator(
-            input_size=self.config.hidden_size,
-            hidden_size=self.config.hidden_size,
-            num_layers=self.config.num_layers).cuda()
+        self.discriminator = Discriminator().cuda()
         self.model = nn.ModuleList([
             self.summarizer, self.generator, self.discriminator])
 
@@ -86,9 +84,9 @@ class Solver(object):
             c_loss_history = []
             for batch_i in enumerate(tqdm(
                     self.train_loader, desc='Batch', ncols=80, leave=False)):
-                original_data, _ = batch_i
-                _, image_features = ResNetFeature(original_data.cuda())
-
+                original_data, _ = batch_i[1] # for the [0 , [data, label]]
+                image_features = self.backbone(original_data.cuda())
+                
                 # [batch_size=1, seq_len, 2048]
                 # [seq_len, 2048]
                 image_features = image_features.view(-1, self.config.input_size)
@@ -98,26 +96,26 @@ class Solver(object):
                     tqdm.write('\nTraining sANN and generator and discriminator...')
 
                 # [seq_len, 1, hidden_size]
-                original_features = .detach()).unsqueeze(1)
+                #original_features = .detach()).unsqueeze(1)
 
                 scores, weighted_features = self.summarizer(image_features)
                 _, uniform_features = self.summarizer(image_features, uniform=True)
+                weighted_features, uniform_features = torch.unsqueeze(weighted_features, -1), torch.unsqueeze(uniform_features, -1)
+                weighted_features, uniform_features = torch.unsqueeze(weighted_features, -1), torch.unsqueeze(uniform_features, -1)
                 weighted_data = self.generator(weighted_features)
                 uniform_data = self.generator(uniform_features)
-                h_origin, original_prob = self.discriminator(original_data)
-                h_fake, fake_prob = self.discriminator(weighted_data)
-                h_uniform, uniform_prob = self.discriminator(uniform_data)
+                original_prob = self.discriminator(original_data.cuda())
+                fake_prob = self.discriminator(weighted_data)
+                uniform_prob = self.discriminator(uniform_data)
 
-                tqdm.write(
-                    f'original_p: {original_prob.data[0]:.3f}, fake_p: {fake_prob.data[0]:.3f}, uniform_p: {uniform_prob.data[0]:.3f}')
+                print('[original_p: %.3f][fake_p: %.3f][uniform_p: %.3f]'% (original_prob.item(), fake_prob.item(), uniform_prob.item()))
 
-                reconstruction_loss = self.reconstruction_loss(h_origin, h_fake)
+                reconstruction_loss = self.reconstruction_loss(weighted_data, uniform_data)
                 sparsity_loss = self.sparsity_loss(scores)
                 gan_loss = self.gan_loss(original_prob, fake_prob, uniform_prob)
                 
                 
-                tqdm.write(
-                    f'recon loss {reconstruction_loss.data[0]:.3f}, sparsity loss: {sparsity_loss.data[0]:.3f}, gan loss: {gan_loss.data[0]:.3f}')
+                print('[recon loss: %.3f][sparsity loss: %.3f][gan loss: %.3f]'% (reconstruction_loss.item(), sparsity_loss.item(), gan_loss.item()))
 
                 s_e_loss = reconstruction_loss + sparsity_loss
                 d_loss = reconstruction_loss + gan_loss
@@ -173,7 +171,7 @@ class Solver(object):
 
             # Save parameters at checkpoint
             ckpt_path = str(self.config.save_dir) + f'_epoch-{epoch_i}.pkl'
-            tqdm.write(f'Save parameters at {ckpt_path}')
+            print('Save parameters at ', ckpt_path)
             torch.save(self.model.state_dict(), ckpt_path)
 
             self.evaluate(epoch_i)
@@ -190,7 +188,7 @@ class Solver(object):
         for data, label in tqdm(self.test_loader, desc='Evaluate', ncols=80, leave=False):
 
             # [seq_len, batch=1, 2048]
-            _, image_features = ResNetFeature(original_data.cuda())
+            image_features = self.backbone(original_data.cuda())
 
             # [seq_len]
             scores, _ = self.summarizer(image_features)

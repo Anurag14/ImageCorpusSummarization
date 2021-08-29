@@ -6,16 +6,15 @@ from torch.autograd import Variable
 
 
 class sANN(nn.Module):
-    def __init__(self, input_size, hidden_size, num_classes=10, num_layers=2):
+    def __init__(self, input_size, hidden_size, num_layers=2):
         super().__init__()
 
         self.out = nn.Sequential(
-            nn.Linear(input_size,hidden_size[0]),
-            nn.dropout(0.5)
-            nn.Linear(hidden_size[0],hidden_size[1]),
-            nn.dropout(0.5)
-            nn.Linear(hidden_size[1], num_classes)
-            nn.dropout(0.5)
+            nn.Linear(input_size,hidden_size*2),
+            nn.Dropout(0.5),
+            nn.Linear(hidden_size*2,hidden_size),
+            nn.Dropout(0.5),
+            nn.Linear(hidden_size, 1),
             nn.Sigmoid())
 
     def forward(self, features, init_hidden=None):
@@ -72,10 +71,8 @@ class Summarizer(nn.Module):
         # Apply weights
         if not uniform:
             # [seq_len, 1]
-            scores = self.s_ANN(image_features)
-
-            # [seq_len, 1, hidden_size]
-            weighted_features = image_features * scores.view(-1, 1, 1)
+            scores = self.s_ann(image_features)
+            weighted_features = image_features * scores
         else:
             scores = None
             weighted_features = image_features

@@ -3,11 +3,10 @@ import torch.nn as nn
 
 
 class Discriminator(nn.Module):
-    def __init__(self, ngpu):
+    def __init__(self):
         super(Discriminator, self).__init__()
         nc = 3
         ndf = 64
-        self.ngpu = ngpu
         self.model = nn.Sequential(
             # input is (nc) x 64 x 64
             nn.Conv2d(nc, ndf, 4, 2, 1, bias=False),

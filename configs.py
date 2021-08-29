@@ -19,31 +19,19 @@ def str2bool(v):
     else:
         raise argparse.ArgumentTypeError('Boolean value expected.')
 
-
 class Config(object):
-    def __init__(self):
+    def __init__(self, **kwargs):
         """Configuration Class: set kwargs as class attributes with setattr"""
-        parser = argparse.ArgumentParser()
-        
-        # Mode
-        parser.add_argument('--mode', type=str, default='train')
-        parser.add_argument('--verbose', type=str2bool, default='true')
+        for k, v in kwargs.items():
+            setattr(self, k, v)
 
-        # Model
-        parser.add_argument('--input_size', type=int, default=2048)
-        parser.add_argument('--hidden_size', type=int, default=500)
-        parser.add_argument('--num_layers', type=int, default=2)
-        parser.add_argument('--summary_rate', type=float, default=0.3)
+        self.set_dataset_dir()
 
-        # Train
-        parser.add_argument('--n_epochs', type=int, default=50)
-        parser.add_argument('--clip', type=float, default=5.0)
-        parser.add_argument('--lr', type=float, default=1e-4)
-        parser.add_argument('--discriminator_lr', type=float, default=1e-5)
-        parser.add_argument('--discriminator_slow_start', type=int, default=15)
-
-        # load epoch
-        parser.add_argument('--epoch', type=int, default=2)
+    def set_dataset_dir(self):
+        self.save_dir = save_dir
+        self.log_dir = self.save_dir
+        self.ckpt_path = self.save_dir.joinpath(f'epoch-{self.epoch}.pkl')
+        self.score_dir = score_dir
 
     def __repr__(self):
         """Pretty-print configurations in alphabetical order"""
@@ -52,8 +40,49 @@ class Config(object):
         return config_str
 
 
+def get_config(parse=True, **optional_kwargs):
+    """
+    Get configurations as attributes of class
+    1. Parse configurations with argparse.
+    2. Create Config class initilized with parsed kwargs.
+    3. Return Config class.
+    """
+    parser = argparse.ArgumentParser()
+
+    # Mode
+    parser.add_argument('--dataset', type=str, default='CIFAR10')
+    parser.add_argument('--mode', type=str, default='train')
+    parser.add_argument('--verbose', type=str2bool, default='true')
+
+    # Model
+    parser.add_argument('--input_size', type=int, default=2048)
+    parser.add_argument('--hidden_size', type=int, default=500)
+    parser.add_argument('--num_layers', type=int, default=2)
+    parser.add_argument('--summary_rate', type=float, default=0.3)
+
+    # Train
+    parser.add_argument('--n_epochs', type=int, default=50)
+    parser.add_argument('--clip', type=float, default=5.0)
+    parser.add_argument('--lr', type=float, default=1e-4)
+    parser.add_argument('--discriminator_lr', type=float, default=1e-5)
+    parser.add_argument('--discriminator_slow_start', type=int, default=15)
+
+    # load epoch
+    parser.add_argument('--epoch', type=int, default=2)
+
+    if parse:
+        kwargs = parser.parse_args()
+    else:
+        kwargs = parser.parse_known_args()[0]
+
+    # Namespace => Dictionary
+    kwargs = vars(kwargs)
+    kwargs.update(optional_kwargs)
+
+    return Config(**kwargs)
+
 
 if __name__ == '__main__':
-    config = Config()
+    config = get_config()
     import ipdb
     ipdb.set_trace()

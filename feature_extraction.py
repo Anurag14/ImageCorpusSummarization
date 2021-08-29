@@ -51,7 +51,7 @@ class ResNetFeature(nn.Module):
         res5c = self.conv5(x)
         pool5 = self.pool5(res5c)
         pool5 = pool5.view(pool5.size(0), -1)
-        return res5c, pool5
+        return pool5
 
 
 resnet_transform = transforms.Compose([
