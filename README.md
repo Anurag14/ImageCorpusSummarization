@@ -1,4 +1,4 @@
-# Adversarial_Video_Summary
+# Image Corpus Representative Summarization
 
 ## PyTorch Implementation of 
 - ["Image Corpus Representative Summarization  (BigMM 2019)"](https://ieeexplore.ieee.org/stamp/stamp.jsp?arnumber=8919310)
