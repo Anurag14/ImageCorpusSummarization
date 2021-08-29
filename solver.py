@@ -104,13 +104,13 @@ class Solver(object):
                 weighted_features, uniform_features = torch.unsqueeze(weighted_features, -1), torch.unsqueeze(uniform_features, -1)
                 weighted_data = self.generator(weighted_features)
                 uniform_data = self.generator(uniform_features)
-                original_prob = self.discriminator(original_data.cuda())
-                fake_prob = self.discriminator(weighted_data)
-                uniform_prob = self.discriminator(uniform_data)
+                original_prob = self.discriminator(original_data.cuda()).squeeze()
+                fake_prob = self.discriminator(weighted_data).squeeze()
+                uniform_prob = self.discriminator(uniform_data).squeeze()
+                print("unform: ", uniform_prob.shape)
+                print('[original_p: %.3f][fake_p: %.3f][uniform_p: %.3f]'% (original_prob[0].item(), fake_prob[0].item(), uniform_prob[0].item()))
 
-                print('[original_p: %.3f][fake_p: %.3f][uniform_p: %.3f]'% (original_prob.item(), fake_prob.item(), uniform_prob.item()))
-
-                reconstruction_loss = self.reconstruction_loss(weighted_data, uniform_data)
+                reconstruction_loss = 0.1*self.reconstruction_loss(weighted_data, uniform_data)
                 sparsity_loss = self.sparsity_loss(scores)
                 gan_loss = self.gan_loss(original_prob, fake_prob, uniform_prob)
                 
@@ -148,13 +148,12 @@ class Solver(object):
                     tqdm.write('Plotting...')
 
                 self.writer.update_loss(reconstruction_loss.data, step, 'recon_loss')
-                self.writer.update_loss(prior_loss.data, step, 'prior_loss')
                 self.writer.update_loss(sparsity_loss.data, step, 'sparsity_loss')
                 self.writer.update_loss(gan_loss.data, step, 'gan_loss')
 
-                self.writer.update_loss(original_prob.data, step, 'original_prob')
-                self.writer.update_loss(fake_prob.data, step, 'fake_prob')
-                self.writer.update_loss(uniform_prob.data, step, 'uniform_prob')
+                #self.writer.update_loss(original_prob.data, step, 'original_prob')
+                #self.writer.update_loss(fake_prob.data, step, 'fake_prob')
+                #self.writer.update_loss(uniform_prob.data, step, 'uniform_prob')
 
                 step += 1
 
